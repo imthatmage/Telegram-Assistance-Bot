@@ -2,7 +2,7 @@
 # Telegram bot assistant project
 
 ## Веса моделей можно найти по [ссылке](https://drive.google.com/drive/folders/1kWuNNIbJRMgzrn3Ip_jS54pMkmEj7RVA?usp=sharing)
-Для того, чтобы заработал весь функционал архивы моделей необходимо распаковать в папку `models`.
+Для того, чтобы заработал весь функционал, архивы моделей необходимо распаковать в папку `models`.
 
 ## Простая модель на основе статистик встречаемости ngram
 * `training_notebooks/stat_lm_training.ipynb` -- основной notebook по обучению модели.
