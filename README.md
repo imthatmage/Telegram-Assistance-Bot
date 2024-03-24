@@ -11,3 +11,8 @@
 ## GPT2 Model Trained Using QLoRA: LoRA (Low Rank Adaptation) and 4bit quantization
 * `training_notebooks/rugptlarge_lm_qlora_training.ipynb` -- основной notebook по обучению модели
 * `Training Data`: для обучения использовался из [датасет](https://huggingface.co/datasets/lksy/ru_instruct_gpt4) из инструкций, сгенерированных с помощью GPT4.
+
+**Бота можно запустить с помощью команды**:
+```
+python llm_assistant_bot.py
+```
