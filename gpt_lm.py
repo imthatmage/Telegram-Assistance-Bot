@@ -19,7 +19,7 @@ class GPTWrapper:
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16,
         )
-        PEFT_MODEL = "models/gpt2/checkpoint-2408"
+        PEFT_MODEL = "models/gpt2"
 
         config = PeftConfig.from_pretrained(PEFT_MODEL)
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -34,11 +34,7 @@ class GPTWrapper:
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def generate(self, input_text, **generation_params):
-        input_text = f"""
-        Task: {input_text}
-        Input:
-        Output:
-        """.strip()
+        input_text = f'### Задание: {input_text}\n\n### Ответ:'
         self.device = "cuda:0"
         encoding = self.tokenizer(input_text, return_tensors="pt").to(self.device)
         with torch.inference_mode():
@@ -48,21 +44,16 @@ class GPTWrapper:
                 **generation_params,
         )
         pred_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        sequence_start = pred_text.find("Output: ") + 8
-        sequence_end = pred_text.rfind("Output:")
+        sequence_start = pred_text.find("## Ответ:") + 9
 
-        if sequence_start - 8 != sequence_end:
-            # временая заглушка, чтобы был один ответ
-            pred_text = pred_text[sequence_start:sequence_end]
-        else:
-            pred_text = pred_text[sequence_start:]
+        pred_text = pred_text[sequence_start:]
         return pred_text
         
 
 def construct_model():
     model = GPTWrapper()
     generation_params = {
-        "max_new_tokens": 200,
+        "max_new_tokens": 300,
         "num_beams": 3,
         "early_stopping": True,
         "no_repeat_ngram_size": 2,
