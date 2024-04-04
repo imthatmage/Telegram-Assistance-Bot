@@ -41,7 +41,7 @@ def model(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     btn1 = types.KeyboardButton("StatLM")
     btn2 = types.KeyboardButton("GPT")
-    btn3 = types.KeyboardButton("Llama")
+    btn3 = types.KeyboardButton("Mistral")
     markup.add(btn1, btn2, btn3)
     bot.send_message(message.from_user.id, "Выберите модель для генерации", reply_markup=markup)
 
@@ -60,7 +60,7 @@ def generate(message):
 @bot.message_handler(content_types=['text'])
 def get_text_messages(message):
     print(f'<{message.text}>')
-    if message.text in ['StatLM', 'GPT', 'Llama']:
+    if message.text in ['StatLM', 'GPT', 'Mistral']:
         print(f'@{message.text}@')
         status, result = model_wrapper.load(message.text, test_inference=True)
         if status:

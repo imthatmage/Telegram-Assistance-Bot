@@ -12,6 +12,12 @@
 * `training_notebooks/rugptlarge_lm_qlora_training.ipynb` -- основной notebook по обучению модели
 * `Training Data`: для обучения использовался из [датасет](https://huggingface.co/datasets/lksy/ru_instruct_gpt4) из инструкций, сгенерированных с помощью GPT4.
 
+## Mistral 7b Model Trained Using QLoRA: LoRA (Low Rank Adaptation) and 4bit quantization
+* `training_notebooks/mistral_7b_v0.1.ipynb` -- основной notebook по обучению модели
+* `Training Data`: для обучения использовался из [датасет](https://huggingface.co/datasets/lksy/ru_instruct_gpt4) из инструкций, сгенерированных с помощью GPT4.
+
+**Для корректного функционирования бота необходимо установить все пакеты из** `requirements.txt`:
+
 **Бота можно запустить с помощью команды**:
 ```
 python llm_assistant_bot.py

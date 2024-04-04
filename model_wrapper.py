@@ -1,7 +1,10 @@
+import gc
 import traceback
 
-import gpt_lm
+import llm_wrapper
 import stat_lm
+
+import torch
 
 class ModelWrapper:
     """
@@ -18,12 +21,19 @@ class ModelWrapper:
 
     def load(self, model_name: str, test_inference: bool = True) -> (bool, str):
         """ Load model by model_name. Return load status and error message. True if success """
+        if self.model is not None:
+            del self.model
+            gc.collect()
+            torch.cuda.empty_cache()
+
         try:
             # ['StatLM', 'GPT', 'Llama']
             if model_name == 'StatLM':
                 self.model, self.generate_kwargs = stat_lm.construct_model()
             elif model_name == 'GPT':
-                self.model, self.generate_kwargs = gpt_lm.construct_model()
+                self.model, self.generate_kwargs = llm_wrapper.construct_model("gpt2")
+            elif model_name == 'Mistral':
+                self.model, self.generate_kwargs = llm_wrapper.construct_model("mistral_7b")
             else:
                 return False, f"Модель {model_name} еще не поддерживается"
         except Exception as e:
