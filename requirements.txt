@@ -203,6 +203,7 @@ safetensors=0.4.2=pypi_0
 scikit-learn=1.4.1.post1=pypi_0
 scipy=1.12.0=pypi_0
 send2trash=1.8.2=pypi_0
+sentencepiece=0.2.0=pypi_0
 setuptools=69.1.1=pyhd8ed1ab_0
 shtab=1.7.1=pypi_0
 six=1.16.0=pypi_0
