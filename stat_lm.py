@@ -27,7 +27,6 @@ class Tokenizer:
 
     def text_preprocess(self, input_text: str) -> str:
         """ Предобрабатываем один текст """
-        # input_text = ... # приведение к нижнему регистру
         input_text = input_text.lower()
         input_text = re.sub('\s+', ' ', input_text)  # унифицируем пробелы
         input_text = input_text.strip()
@@ -107,7 +106,7 @@ class GenerationConfig:
         """
         self.temperature = kwargs.pop("temperature", 1.0)
         self.max_tokens = kwargs.pop("max_tokens", 32)
-        self.sample_top_p = kwargs.pop("sample_top_p", 0.9)
+        self.sample_top_p = kwargs.pop("sample_top_p", 1)
         self.decoding_strategy = kwargs.pop("decoding_strategy", 'max')
         self.remove_special_tokens = kwargs.pop("remove_special_tokens", False)
         self.gen_decay = kwargs.pop("gen_decay", 1.0)
@@ -115,8 +114,6 @@ class GenerationConfig:
 
     def validate(self):
         """ Здесь можно валидировать параметры """
-        if not (1.0 > self.sample_top_p > 0):
-            raise ValueError('sample_top_p')
         if self.decoding_strategy not in ['max', 'top-p']:
             raise ValueError('decoding_strategy')
 
@@ -137,8 +134,8 @@ class StatLM:  # (ModelTemplate):
         self.tokenizer = tokenizer
         self.alpha = alpha
 
-        self.n_gramms_stat = defaultdict(int)
-        self.nx_gramms_stat = defaultdict(int)
+        self.n_gramms_stat = []
+        self.nx_gramms_stat = []
 
     def get_token_by_ind(ind: int) -> str:
         return self.tokenizer.vocab.get(ind)
@@ -147,17 +144,20 @@ class StatLM:  # (ModelTemplate):
         return self.tokenizer.inverse_vocab.get(token, self.tokenizer.inverse_vocab[self.unk_token])
 
     def train(self, train_texts: List[str]):
-        for sentence in tqdm(train_texts, desc='training'):
-            sentence_ind = self.tokenizer.encode(sentence)
-            for i in range(len(sentence_ind) - self.context_size):
-                seq = tuple(sentence_ind[i: i + self.context_size - 1])
-                self.n_gramms_stat[seq] += 1
+        for i_gram, context_size in tqdm(enumerate(range(self.context_size, 2, -1))):
+            self.n_gramms_stat.append(defaultdict(int))
+            self.nx_gramms_stat.append(defaultdict(int))
+            for sentence in train_texts:
+                sentence_ind = self.tokenizer.encode(sentence)
+                for i in range(len(sentence_ind) - context_size):
+                    seq = tuple(sentence_ind[i: i + context_size - 1])
+                    self.n_gramms_stat[i_gram][seq] += 1
 
-                seq_x = tuple(sentence_ind[i: i + self.context_size])
-                self.nx_gramms_stat[seq_x] += 1
+                    seq_x = tuple(sentence_ind[i: i + context_size])
+                    self.nx_gramms_stat[i_gram][seq_x] += 1
 
-            seq = tuple(sentence_ind[len(sentence_ind) - self.context_size:])
-            self.n_gramms_stat[seq] += 1
+                seq = tuple(sentence_ind[len(sentence_ind) - context_size:])
+                self.n_gramms_stat[i_gram][seq] += 1
 
     def sample_token(self,
                      token_distribution: np.ndarray,
@@ -167,18 +167,12 @@ class StatLM:  # (ModelTemplate):
         elif generation_config.decoding_strategy == 'top-p':
             token_distribution = sorted(list(zip(token_distribution, np.arange(len(token_distribution)))),
                                         reverse=True)
-            total_proba = 0.0
             tokens_to_sample = []
             tokens_probas = []
-            for token_proba, ind in token_distribution:
-                # print(token_proba, self.tokenizer.decode([ind]))
+            for token_proba, ind in token_distribution[:generation_config.sample_top_p]:
                 tokens_to_sample.append(ind)
                 tokens_probas.append(token_proba)
-                total_proba += token_proba
-                if total_proba >= generation_config.sample_top_p:
-                    break
-            # print()
-            # для простоты отнормируем вероятности, чтобы суммировались в единицу
+
             tokens_probas = np.array(tokens_probas)**generation_config.temperature
             tokens_probas = tokens_probas / tokens_probas.sum()
             return np.random.choice(tokens_to_sample, p=tokens_probas)
@@ -226,23 +220,30 @@ class StatLM:  # (ModelTemplate):
 
     def _get_next_token(self,
                         tokens: List[int],
-                        generation_config: GenerationConfig,
-                        all_tokens: List[int]) -> (int, str):
-        denominator = self.n_gramms_stat.get(tuple(tokens), 0) + self.alpha * len(self.tokenizer.vocab)
-        numerators = []
-        for ind in self.tokenizer.inverse_vocab:
-            if ind in all_tokens:
-                # print("In tokens: ", generation_config.gen_decay)
-                numerators.append(
-                    generation_config.gen_decay
-                    * (self.nx_gramms_stat.get(tuple(tokens + [ind]), 0)
-                    + self.alpha)
-                )
-            else:
-                numerators.append(
-                    self.nx_gramms_stat.get(tuple(tokens + [ind]), 0)
-                    + self.alpha
-                )
+                        generation_config: GenerationConfig) -> (int, str):
+        for i_gram, context_size in enumerate(range(self.context_size, 2, -1)):
+            denominator = self.n_gramms_stat[i_gram].get(tuple(tokens[i_gram:]), 0) + self.alpha * len(self.tokenizer.vocab)
+            numerators = []
+
+            null_count = 0
+
+            for ind in self.tokenizer.inverse_vocab:
+                # if ind in all_tokens:
+                #     reduced += 1
+                #     numerator = generation_config.gen_decay \
+                #         * (self.nx_gramms_stat[i_gram].get(tuple(tokens + [ind]), 0)
+                #         + self.alpha)
+                # else:
+                numerator = self.nx_gramms_stat[i_gram].get(tuple(tokens[i_gram:] + [ind]), 0) \
+                                + self.alpha
+                if numerator == self.alpha:
+                    null_count += 1
+                numerators.append(numerator)
+            break
+            # print(null_count, len(self.tokenizer.inverse_vocab), reduced)
+            if len(self.tokenizer.inverse_vocab) - null_count >= 1:
+                break
+            # print(f"Going to {i_gram + 1}")
 
         token_distribution = np.array(numerators) / denominator
         max_proba_ind = self.sample_token(token_distribution, generation_config)
@@ -273,7 +274,7 @@ class StatLM:  # (ModelTemplate):
 
         next_token = None
         while next_token != self.tokenizer.eos_token and len(all_tokens) < generation_config.max_tokens:
-            max_proba_ind, next_token = self._get_next_token(tokens, generation_config, all_tokens)
+            max_proba_ind, next_token = self._get_next_token(tokens, generation_config)
             all_tokens.append(max_proba_ind)
             tokens = all_tokens[-self.context_size + 1:]
 
@@ -300,14 +301,14 @@ def construct_model():
     """
     config = {
         'temperature': 1.2,
-        'max_tokens': 24,
-        'sample_top_p': 0.0005,
+        'max_tokens': 30,
+        'sample_top_p': 5,
         'decoding_strategy': 'top-p',
-        'gen_decay': 1e-32,
+        'gen_decay': 1,
     }
 
-    stat_lm_path = 'models/stat_lm/stat_lm_alm.pkl'
-    tokenizer_path = 'models/stat_lm/tokenizer_alm.pkl'
+    stat_lm_path = 'models/stat_lm/stat_lm.pkl'
+    tokenizer_path = 'models/stat_lm/tokenizer.pkl'
 
     tokenizer = Tokenizer()
     tokenizer.load(tokenizer_path)
