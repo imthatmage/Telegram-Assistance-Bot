@@ -6,7 +6,7 @@
 
 ## Простая модель на основе статистик встречаемости ngram
 * `training_notebooks/stat_lm_training.ipynb` -- основной notebook по обучению модели.
-* `Training Data`: для обучения использовался [датасет](https://huggingface.co/datasets/IlyaGusev/gazeta) из новостных текстов на русском языке.
+* `Training Data`: для обучения использовался [датасет](https://huggingface.co/datasets/Den4ikAI/russian_dialogues) из диалогов собранных с Telegram чатов.
 
 ## GPT2 Model Trained Using QLoRA: LoRA (Low Rank Adaptation) and 4bit quantization
 * `training_notebooks/rugptlarge_lm_qlora_training.ipynb` -- основной notebook по обучению модели
@@ -22,3 +22,8 @@
 ```
 python llm_assistant_bot.py
 ```
+
+## Примеры работы бота
+GPT2 Answers             |  Mistral Answers | Ngram Model
+:-------------------------:|:-------------------------:|:-------------------------:
+![](examples/gpt2_example.png)  |  ![](examples/mistral_example.png) | ![](examples/statlm_example.png)
