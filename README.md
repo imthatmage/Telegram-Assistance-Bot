@@ -27,3 +27,10 @@ python llm_assistant_bot.py
 GPT2 Answers             |  Mistral Answers | Ngram Model
 :-------------------------:|:-------------------------:|:-------------------------:
 ![](examples/gpt2_example.png)  |  ![](examples/mistral_example.png) | ![](examples/statlm_example.png)
+
+
+## Метрики на инструкционных моделях
+| Model   | Training Loss | Validation Loss | Rouge1   | Rouge2   | Rougel   | Rougelsum | Bleu     |
+| -----   | ------------- | --------------- | -------- | -------- | -------- | --------- | -------- |
+| **GPT2**    | 1.948600      | 1.965270        | 0.171252 | 0.088855 | 0.167642 | 0.168607  | 0.480183 |
+| **Mistral** | 0.931100      | 0.835708        | **0.191417** | **0.123226** | **0.190067** | **0.189545**  | **0.535177** |
