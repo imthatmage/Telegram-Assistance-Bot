@@ -134,8 +134,8 @@ class StatLM:  # (ModelTemplate):
         self.tokenizer = tokenizer
         self.alpha = alpha
 
-        self.n_gramms_stat = []
-        self.nx_gramms_stat = []
+        self.n_gramms_stat = defaultdict(int)
+        self.nx_gramms_stat = defaultdict(int)
 
     def get_token_by_ind(ind: int) -> str:
         return self.tokenizer.vocab.get(ind)
@@ -144,20 +144,17 @@ class StatLM:  # (ModelTemplate):
         return self.tokenizer.inverse_vocab.get(token, self.tokenizer.inverse_vocab[self.unk_token])
 
     def train(self, train_texts: List[str]):
-        for i_gram, context_size in tqdm(enumerate(range(self.context_size, 2, -1))):
-            self.n_gramms_stat.append(defaultdict(int))
-            self.nx_gramms_stat.append(defaultdict(int))
-            for sentence in train_texts:
-                sentence_ind = self.tokenizer.encode(sentence)
-                for i in range(len(sentence_ind) - context_size):
-                    seq = tuple(sentence_ind[i: i + context_size - 1])
-                    self.n_gramms_stat[i_gram][seq] += 1
+        for sentence in train_texts:
+            sentence_ind = self.tokenizer.encode(sentence)
+            for i in range(len(sentence_ind) - self.context_size):
+                seq = tuple(sentence_ind[i: i + self.context_size - 1])
+                self.n_gramms_stat[seq] += 1
 
-                    seq_x = tuple(sentence_ind[i: i + context_size])
-                    self.nx_gramms_stat[i_gram][seq_x] += 1
+                seq_x = tuple(sentence_ind[i: i + self.context_size])
+                self.nx_gramms_stat[seq_x] += 1
 
-                seq = tuple(sentence_ind[len(sentence_ind) - context_size:])
-                self.n_gramms_stat[i_gram][seq] += 1
+            seq = tuple(sentence_ind[len(sentence_ind) - self.context_size:])
+            self.n_gramms_stat[seq] += 1
 
     def sample_token(self,
                      token_distribution: np.ndarray,
@@ -221,29 +218,23 @@ class StatLM:  # (ModelTemplate):
     def _get_next_token(self,
                         tokens: List[int],
                         generation_config: GenerationConfig) -> (int, str):
-        for i_gram, context_size in enumerate(range(self.context_size, 2, -1)):
-            denominator = self.n_gramms_stat[i_gram].get(tuple(tokens[i_gram:]), 0) + self.alpha * len(self.tokenizer.vocab)
-            numerators = []
+        denominator = self.n_gramms_stat.get(tuple(tokens), 0) + self.alpha * len(self.tokenizer.vocab)
+        numerators = []
 
-            null_count = 0
+        null_count = 0
 
-            for ind in self.tokenizer.inverse_vocab:
-                # if ind in all_tokens:
-                #     reduced += 1
-                #     numerator = generation_config.gen_decay \
-                #         * (self.nx_gramms_stat[i_gram].get(tuple(tokens + [ind]), 0)
-                #         + self.alpha)
-                # else:
-                numerator = self.nx_gramms_stat[i_gram].get(tuple(tokens[i_gram:] + [ind]), 0) \
-                                + self.alpha
-                if numerator == self.alpha:
-                    null_count += 1
-                numerators.append(numerator)
-            break
-            # print(null_count, len(self.tokenizer.inverse_vocab), reduced)
-            if len(self.tokenizer.inverse_vocab) - null_count >= 1:
-                break
-            # print(f"Going to {i_gram + 1}")
+        for ind in self.tokenizer.inverse_vocab:
+            # if ind in all_tokens:
+            #     reduced += 1
+            #     numerator = generation_config.gen_decay \
+            #         * (self.nx_gramms_stat[i_gram].get(tuple(tokens + [ind]), 0)
+            #         + self.alpha)
+            # else:
+            numerator = self.nx_gramms_stat.get(tuple(tokens + [ind]), 0) \
+                            + self.alpha
+            if numerator == self.alpha:
+                null_count += 1
+            numerators.append(numerator)
 
         token_distribution = np.array(numerators) / denominator
         max_proba_ind = self.sample_token(token_distribution, generation_config)
@@ -265,6 +256,14 @@ class StatLM:  # (ModelTemplate):
             'next_token': next_token,
             'next_token_num': max_proba_ind,
         }
+    
+    def clean_text(self, text):
+        punctuation = ['!', '?', ',', '.', '-', ':']
+        remove_indices = []
+        for index in range(1, len(text)):
+            if text[index] in punctuation:
+                remove_indices.append(index - 1)
+        return "".join([elem for i, elem in enumerate(text) if i not in remove_indices])
 
     def generate_text(self, text: str,
                       generation_config: GenerationConfig
@@ -283,6 +282,8 @@ class StatLM:  # (ModelTemplate):
         finish_reason = 'max tokens'
         if all_tokens[-1] == self.tokenizer.vocab[self.tokenizer.eos_token]:
             finish_reason = 'end of text'
+        
+        new_text = self.clean_text(new_text)
 
         return {
             'all_tokens': all_tokens,
@@ -291,7 +292,10 @@ class StatLM:  # (ModelTemplate):
         }
 
     def generate(self, text: str, generation_config: Dict) -> str:
-        return self.generate_text(text, generation_config)['total_text']
+        generated_text = self.generate_text(text, generation_config)['total_text']
+        text = generated_text[len(text):]
+
+        return text
 
 
 def construct_model():
@@ -300,7 +304,7 @@ def construct_model():
     код StatLM и Tokenizer должен совпадать с кодом из ноутбука, в которой происходило сохранение параметров модели и токенизатора
     """
     config = {
-        'temperature': 1.2,
+        'temperature': 1.0,
         'max_tokens': 30,
         'sample_top_p': 5,
         'decoding_strategy': 'top-p',
